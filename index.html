@@ -107,6 +107,18 @@ input[type=text],textarea,select{border-radius:var(--radius-control);font-size:v
 #regenBox{border:1px solid var(--warn);padding:var(--space-4);background:var(--panel2)}#regenBox pre{margin:var(--space-3) 0}#regenBox[hidden],#aiStatus[hidden]{display:none}
 .action-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);margin:var(--space-3) 0}
 @media(max-width:800px){section{padding:var(--space-4)}.source-tabs,.prompt-segments{width:100%}.source-tabs button,.prompt-segments button{flex:1}}
+
+/* Shared reading scale for answers. Large content scrolls without shrinking text. */
+:root{--answer-font:16px;--answer-leading:1.5;--answer-min:128px;--answer-max:480px}
+textarea,td textarea{font-size:var(--answer-font);line-height:var(--answer-leading);min-height:var(--answer-min);max-height:var(--answer-max);padding:10px 12px;resize:vertical;overflow:auto}
+#s2 table{table-layout:fixed;min-width:740px;width:100%;display:table}
+#s2 .answer-table-scroll,#s7 .answer-table-scroll{overflow-x:auto;max-width:100%}
+#s2 td:first-child{width:27%}#s2 td:nth-child(2){width:30%}#s2 td:nth-child(3){width:38%}
+#s2 textarea[data-p=name]{min-height:96px}
+.canvas-scroll{max-width:100%;overflow-x:auto;border-radius:10px}
+.canvas-scroll .canvas-wrap{min-width:1280px}
+.canvas-scroll:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px}
+@media print{.canvas-scroll .canvas-wrap{min-width:0}}
 </style>
 </head>
 <body>
@@ -239,7 +251,7 @@ input[type=text],textarea,select{border-radius:var(--radius-control);font-size:v
 <h2><span class="step-no">6</span>AI Leverage Canvas: девять ячеек</h2>
 <p>Заполняйте слева направо: сначала контекст (процесс, проблема, роль), затем решение и ценность (решение, выгоды, метрики), потом как проверим (данные и инструменты, пилот, шаги). Сначала отредактируйте поля ниже. Готовый холст сразу обновится под ними.</p>
 <div id="cellEditors"></div>
-<div class="canvas-wrap" id="canvasWrap"></div>
+<p class="small">Холст можно прокручивать по горизонтали, длинные тексты — внутри ячеек. Полные тексты также доступны в полях выше и в экспорте.</p><div class="canvas-scroll" tabindex="0" role="region" aria-label="Холст с горизонтальной прокруткой"><div class="canvas-wrap" id="canvasWrap"></div></div>
 <p class="small no-print">Холст «ИИ-рычаг» (AI Leverage Canvas © shuvaev.com, CC BY-SA 4.0). Кнопки «Скачать холст HTML» и «.md» — в шаге 8.</p>
 </section>
 
@@ -356,6 +368,11 @@ function renderManualFields(){
 }
 function kindName(k){const e=EXPECTED.find(x=>x.k===k);return e?e.name:"Не распознано (текст)"}
 function detectKind(name,text){const n=(name||"").toLowerCase(),t=text.slice(0,400000).toLowerCase();
+ // Explicit artifact names take precedence over incidental mentions in the body.
+ const base=n.split(/[\\/]/).pop().replace(/\.(md|txt)$/,'').replace(/[ _-]+/g,' ').trim();
+ if(/^(product brief|brief|бриф продукта|бриф продукт|продуктовый бриф|бриф)(?: \(?\d+\)?)?$/.test(base))return 'brief';
+ if(/^(analytical note|m1 analytical note)(?: full)?$/.test(base))return 'note';
+ if(/^\s*#{1,6}\s+(?:бриф продукта|продуктовый бриф|product brief)\b/im.test(text)||/^\s*#{1,6}\s+(?:бриф продукта|продуктовый бриф)(?:\s|$)/im.test(text))return 'brief';
  if(n.endsWith(".ipynb")||t.includes('"cells"')){return /finmodel|npv|финмодел|финансов\w* модел/.test(n+" "+t)?"fin":"eda"}
  if(n.endsWith(".json")||t.trim().startsWith("{")){
   if(/genbi|genbi(schema|sql|chart)tool/.test(n+" "+t))return"genbi";
@@ -432,7 +449,7 @@ const DEMO={org:"Продуктовая команда «Пульс» — умн
 /* ---------- кандидаты и линзы ---------- */
 function renderCands(){
  renderQuadLens();
- $("#candRows").innerHTML=S.cands.map((c,i)=>`<tr><td><input type="text" data-cand="${i}" data-p="name" value="${esc(c.name)}" placeholder="Обработка входящих обращений"></td><td>${LENSES.map(([k,l])=>`<span class="lens ${c.lenses[k]?'on':''}" data-lens="${k}" data-ci="${i}">${l}</span>`).join("")}</td><td><textarea data-cand="${i}" data-p="note" placeholder="Факт с цифрой: 8 операторов, 4 200 обращений/мес; 61 % повторяющихся">${esc(c.note)}</textarea></td><td><button class="tiny" data-delc="${i}" title="убрать">×</button></td></tr>`).join("");
+ $("#candRows").innerHTML=S.cands.map((c,i)=>`<tr><td><textarea data-cand="${i}" data-p="name" aria-label="Название процесса ${i+1}" placeholder="Обработка входящих обращений">${esc(c.name)}</textarea></td><td>${LENSES.map(([k,l])=>`<span class="lens ${c.lenses[k]?'on':''}" data-lens="${k}" data-ci="${i}">${l}</span>`).join("")}</td><td><textarea data-cand="${i}" data-p="note" placeholder="Факт с цифрой: 8 операторов, 4 200 обращений/мес; 61 % повторяющихся">${esc(c.note)}</textarea></td><td><button class="tiny" data-delc="${i}" title="убрать">×</button></td></tr>`).join("");
  const n=S.cands.filter(c=>c.name.trim()).length,ok=S.cands.filter(c=>c.name.trim()&&Object.values(c.lenses).filter(Boolean).length>=2).length;
  const el=$("#lensNote");el.className="note "+(n>=3&&n<=5&&ok===n?"ok":"warn");el.textContent=n<3?`Названо процессов: ${n}. Нужно 3–5.`:n>5?`Процессов ${n}: оставьте 3–5 самых сильных.`:ok<n?`У ${n-ok} процесс(ов) меньше двух линз — либо усильте, либо уберите.`:`${n} процессов, у каждого минимум две линзы. Переходите к осям.`;
 }
@@ -501,7 +518,7 @@ function canvasSvg(){
   }
   const text=(S.cells[c.id]||'Заполните поле выше.').replace(/\s+/g,' ').trim();
   let chosen=null;
-  for(let size=18;size>=8&&!chosen;size--){ctx.font=`${size}px Arial`;const lineHeight=Math.ceil(size*1.35);
+  for(let size=28;size>=25&&!chosen;size--){ctx.font=`${size}px Arial`;const lineHeight=Math.ceil(size*1.35);
    for(let count=3;count<65;count++){
     const start=Math.round(centers[c.id]-(count*lineHeight)/2), words=(c.n+'. '+c.t.split(' (')[0]+'\n'+text).split(/(\n|\s+)/).filter(w=>w==='\n'||w.trim());let n=0,lines=[];
     for(let row=0;row<count&&n<words.length;row++){const y=start+row*lineHeight,range=span(y,size);if(!range||range[1]-range[0]<160)break;let line='';while(n<words.length){const word=words[n];if(word==='\n'){n++;break}const next=line?line+' '+word:word;if(ctx.measureText(next).width>range[1]-range[0])break;line=next;n++}if(!line)break;lines.push({x:range[0],y,text:line})}
@@ -509,20 +526,32 @@ function canvasSvg(){
    }
   }
   if(chosen)svg+=`<g data-layout-cell="${c.id}" fill="#20242c" font-family="Arial,sans-serif" font-size="${chosen.size}">`+chosen.lines.map((l,i)=>`<text x="${l.x}" y="${l.y}" ${i===0?'font-weight="700" fill="#c43d23"':''}>${esc(l.text)}</text>`).join('')+'</g>';
-  else svg+=`<text x="${BOX[c.id][0]}" y="${centers[c.id]}" font-size="16">${c.n}. Полный текст — в поле выше</text>`;
+  else {
+   // Find an inset rectangle inside this exact region, including the circular cut-out.
+   // Overflow remains readable and scrollable instead of shrinking or discarding text.
+   let box=null,best=0;
+   for(let top=70;top<970;top+=20){let left=0,right=1920;
+    for(let bottom=top;bottom<=1010;bottom+=20){const range=span(bottom,0);if(!range)break;left=Math.max(left,range[0]);right=Math.min(right,range[1]);const height=bottom-top,width=right-left;if(width<160)break;
+     const score=width*height/(1+Math.abs((top+bottom)/2-centers[c.id])/400);
+     if(height>=80&&score>best){best=score;box=[left,top,width,height]}
+    }
+   }
+   const [x,y,w,h]=box||BOX[c.id];
+   svg+=`<foreignObject x="${x}" y="${y}" width="${w}" height="${h}" data-layout-cell="${c.id}"><div xmlns="http://www.w3.org/1999/xhtml" tabindex="0" role="region" aria-label="${esc(c.t)}: полный текст с прокруткой" style="height:100%;overflow:auto;box-sizing:border-box;padding:4px;font:25px/1.35 Arial,sans-serif;color:#20242c;overflow-wrap:anywhere"><b style="display:block;color:#c43d23">${c.n}. ${esc(c.t.split(' (')[0])}</b>${esc(text)}</div></foreignObject>`;
+  }
  }
  return svg+'</svg>';
 }
 function renderCanvas(){$('#canvasWrap').innerHTML=canvasSvg()}
 function syncCanvas(){renderCanvas()}
 function renderCells(){
- $("#cellEditors").innerHTML=CELLS.map(c=>`<details ${(S.cells[c.id]||"").trim()?"":"open"}><summary>${c.n}. ${c.t}</summary><div class="hint4"><div><b>Что писать</b>${c.what}</div><div><b>Откуда берём</b>${c.from}</div><div><b>Хороший пример</b>${c.good}</div><div><b>Типичная ошибка</b>${c.bad}</div></div><textarea data-cell="${c.id}" style="min-height:90px">${esc(S.cells[c.id]||"")}</textarea></details>`).join("");
+ $("#cellEditors").innerHTML=CELLS.map(c=>`<details ${(S.cells[c.id]||"").trim()?"":"open"}><summary>${c.n}. ${c.t}</summary><div class="hint4"><div><b>Что писать</b>${c.what}</div><div><b>Откуда берём</b>${c.from}</div><div><b>Хороший пример</b>${c.good}</div><div><b>Типичная ошибка</b>${c.bad}</div></div><textarea data-cell="${c.id}">${esc(S.cells[c.id]||"")}</textarea></details>`).join("");
  renderCanvas();
 }
 
 /* ---------- связность ---------- */
 function renderChecks(full=true){
- if(full)$("#checkRows").innerHTML=CHECKS.map((c,i)=>`<tr><td>${c}</td><td><textarea data-check="${i}" style="min-height:44px">${esc(S.checks[i]||"")}</textarea></td></tr>`).join("");
+ if(full)$("#checkRows").innerHTML=CHECKS.map((c,i)=>`<tr><td>${c}</td><td><textarea data-check="${i}">${esc(S.checks[i]||"")}</textarea></td></tr>`).join("");
  const done=CHECKS.filter((c,i)=>(S.checks[i]||"").trim()).length;const n=$("#checkNote");n.className="note "+(done===6?"ok":"");n.textContent=done===6?"Все шесть проверок описаны. Холст связный.":`Описано проверок: ${done} из 6.`;
 }
 
@@ -543,16 +572,21 @@ function exportMd(){
  return m;
 }
 function download(name,text,type="text/plain;charset=utf-8"){const u=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1500)}
-async function copyText(t){try{await navigator.clipboard.writeText(t);msg("Скопировано")}catch(e){const ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();msg("Скопировано")}}
+async function copyText(t,notice="Скопировано"){
+ try{await navigator.clipboard.writeText(t);msg(notice)}catch(e){
+  const active=document.activeElement,ta=document.createElement("textarea");ta.value=t;ta.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(ta);ta.select();
+  const copied=document.execCommand("copy");ta.remove();active?.focus({preventScroll:true});msg(copied?notice:'Не удалось скопировать. Выделите текст промпта вручную.');
+ }
+}
 function exportHtml(){
  const cellsHtml='',svg=canvasSvg();
  const md=exportMd();const title=esc(S.winner||"AI Leverage Canvas");
- return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Leverage Canvas — ${title}</title><style>body{margin:0;background:#f2f3f5;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a}main{max-width:1400px;margin:0 auto;padding:24px}h1{font-size:22px;margin:0 0 4px}.sub{color:#666;font-size:13px;margin:0 0 14px}.canvas-wrap{position:relative;width:100%;aspect-ratio:1920/1080;background:#fff;border:1px solid #d9d9d9;border-radius:10px;overflow:hidden}.canvas-wrap svg{position:absolute;inset:0;width:100%;height:100%}.cell{position:absolute;font-size:calc(.58vw + 2px);line-height:1.22;overflow:hidden;overflow-wrap:anywhere;word-break:break-word;padding:.22em .3em;white-space:pre-wrap}.cell.compact{font-size:calc(.48vw + 1px);line-height:1.16;padding:.16em .2em}.clabel{position:absolute;font-weight:800;font-size:calc(.55vw + 3px);text-transform:uppercase;letter-spacing:.01em}.cnum{display:inline-block;width:1.5em;height:1.5em;border-radius:50%;background:#ff5533;color:#fff;text-align:center;line-height:1.5em;font-size:.85em;margin-right:.35em}@media(min-width:1400px){.cell{font-size:10px}.cell.compact{font-size:8.5px}.clabel{font-size:11px}}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;font-size:13px;margin-top:20px}.foot{font-size:11px;color:#888;margin-top:8px}@media print{body{background:#fff}main{padding:0}.canvas-wrap{border:none;page-break-after:always}}</style></head><body><main><h1>AI Leverage Canvas — ${title}</h1><p class="sub">${esc(S.org)}${S.src?" · Источник цифр: "+esc(S.src):""}</p><div class="canvas-wrap">${svg}${cellsHtml}</div><p class="foot">Холст «ИИ-рычаг» (AI Leverage Canvas © shuvaev.com, CC BY-SA 4.0) · собран в тренажёре курса «Принятие решений на основе данных и ИИ»</p><pre>${esc(md)}</pre></main></body></html>`;
+ return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Leverage Canvas — ${title}</title><style>body{margin:0;background:#f2f3f5;font-family:Inter,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a}main{max-width:1400px;margin:0 auto;padding:24px}h1{font-size:22px;margin:0 0 4px}.sub{color:#666;font-size:13px;margin:0 0 14px}.canvas-wrap{position:relative;width:100%;aspect-ratio:1920/1080;background:#fff;border:1px solid #d9d9d9;border-radius:10px;overflow:hidden}.canvas-wrap svg{position:absolute;inset:0;width:100%;height:100%}.cell{position:absolute;font-size:calc(.58vw + 2px);line-height:1.22;overflow:hidden;overflow-wrap:anywhere;word-break:break-word;padding:.22em .3em;white-space:pre-wrap}.cell.compact{font-size:calc(.48vw + 1px);line-height:1.16;padding:.16em .2em}.clabel{position:absolute;font-weight:800;font-size:calc(.55vw + 3px);text-transform:uppercase;letter-spacing:.01em}.cnum{display:inline-block;width:1.5em;height:1.5em;border-radius:50%;background:#ff5533;color:#fff;text-align:center;line-height:1.5em;font-size:.85em;margin-right:.35em}@media(min-width:1400px){.cell{font-size:10px}.cell.compact{font-size:8.5px}.clabel{font-size:11px}}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;font-size:13px;margin-top:20px}.foot{font-size:11px;color:#888;margin-top:8px}@media print{body{background:#fff}main{padding:0}.canvas-wrap{border:none;page-break-after:always}}</style></head><body><main><h1>AI Leverage Canvas — ${title}</h1><p class="sub">${esc(S.org)}${S.src?" · Источник цифр: "+esc(S.src):""}</p><div style="max-width:100%;overflow-x:auto" tabindex="0" role="region" aria-label="Холст с горизонтальной прокруткой"><div class="canvas-wrap" style="min-width:1280px">${svg}${cellsHtml}</div></div><p class="foot">Холст «ИИ-рычаг» (AI Leverage Canvas © shuvaev.com, CC BY-SA 4.0) · собран в тренажёре курса «Принятие решений на основе данных и ИИ»</p><pre>${esc(md)}</pre></main></body></html>`;
 }
 $("#dlMd").onclick=()=>download("ai_leverage_canvas.md",exportMd(),"text/markdown;charset=utf-8");
 $("#copyMd").onclick=()=>copyText(exportMd());
 $("#dlHtml").onclick=()=>download("ai_leverage_canvas.html",exportHtml(),"text/html;charset=utf-8");
-$("#reset").onclick=()=>{if(confirm("Начать заново и стереть введённые ответы? Это нельзя отменить."))(S=fresh(),save(),renderAll())};
+$("#reset").onclick=()=>resetTrainer();
 document.querySelector("#s8 details:last-of-type").addEventListener("toggle",e=>{if(e.target.open)$("#mdPre").textContent=exportMd()});
 
 /* ---------- прогресс ---------- */
@@ -563,15 +597,17 @@ function renderProgress(){
 document.addEventListener("click",e=>{const g=e.target.dataset.go;if(g){document.getElementById(g).scrollIntoView({behavior:"smooth",block:"start"})}});
 function renderAll(){$("#org").value=S.org;$("#src").value=S.src;$("#why").value=S.why;$("#sdpNowText").value=S.sdpNowText;$("#sdpGoalText").value=S.sdpGoalText;$("#roleWhy").value=S.roleWhy;renderExpected();renderManualFields();renderCands();renderAxes();renderSdp();renderRoles();renderCells();renderChecks();renderProgress();renderBridge()}
 let bridgeMode='filled', beforeAI=null;
-$('#clearAnswers').onclick=()=>{
+function resetTrainer(){
  if(!confirm('Очистить ответы, загруженные файлы и черновик? Восстановить их в тренажёре будет нельзя.'))return;
- beforeAI=null;S=fresh();$('#fullSourceContext').checked=false;$('#regenBox').hidden=true;$('#aiStatus').hidden=false;
- $('#aiReply').value='';$('#mdPre').textContent='';
+ clearTimeout(renderCands.lazy);beforeAI=null;S=fresh();$('#fullSourceContext').checked=false;$('#regenBox').hidden=true;$('#aiStatus').hidden=false;
+ $('#sourceFiles').value='';$('#aiReply').value='';$('#mdPre').textContent='';hideTip();
  save();renderAll();$('#undoAI').disabled=true;$('#undoAI').textContent='Отменить последнее извлечение';
- $('#fillNote').textContent='Всё очищено. Загрузите новый набор материалов для теста.';
+ $('#sourceTabFiles').click();$('#fillNote').textContent='Всё очищено. Загрузите новый набор материалов.';
  $('#aiStatus').textContent='Черновик и материалы очищены. Загрузите файлы и соберите новый промпт.';
+ $('#sourceFiles').focus({preventScroll:true});window.scrollTo({top:0,left:0,behavior:'instant'});
  msg('Черновик и материалы очищены');
-};
+}
+$('#clearAnswers').onclick=()=>resetTrainer();
 function responseShape(){return {org:'Организация из источников',src:'Названия источников цифр',cands:[{name:'Процесс',lenses:{income:true,cost:true,routine:false,risk:false},note:'Факт и ссылка на имя файла; недостающие данные: <уточнить>. Предложенные линзы и оценки: допущение, обоснование.',axes:{complexity:3,cost:3,speed:3,repeat:3}}],winner:'Точное имя выбранного процесса',why:'Сравнение по осям и обоснование',sdpNow:'L1',sdpGoal:'L2',sdpNowText:'Текущее состояние: источник / уточнить',sdpGoalText:'Цель и обоснование перехода',role:'Ассистент',roleWhy:'Почему эта роль, а не другие',roleIdeas:Object.fromEntries(ROLES.map(([r])=>[r,'Идея и ограничение'])),cells:Object.fromEntries(CELLS.map(c=>[c.id,c.t+': факты со ссылками; недостающее — <уточнить>'])),checks:Object.fromEntries(CHECKS.map((c,i)=>[i,c+': объяснение или <уточнить>']))}}
 function sourceContext(s,full=false){
  if(full)return s.text;
@@ -588,9 +624,9 @@ function sourceContext(s,full=false){
  }catch(e){}
  return s.text;
 }
-function materialContext(full=false){return S.sources.map(s=>`--- ${s.name} ---\n${sourceContext(s,full)}`).join('\n\n')||'<материалы не загружены; попроси факты, не придумывай их>'}
+function materialContext(full=false){return S.sources.map(s=>`--- ${s.name} ---\n${sourceContext(s,full)}`).join('\n\n')||'[ЗАПОЛНИТЕ: добавьте материалы проекта или опишите известные факты; недостающие сведения запросите у пользователя, не придумывайте их]' }
 function bridgeParts(template=false){return [
-{v:false,t:`Ты заполняешь AI Leverage Canvas по произвольному набору артефактов одного студента. Внизу даны подготовленные материалы файлов: в компактном режиме код ячеек и реализации компонентов исключён, поэтому не делай вывод об отсутствии вычислений или инструментов только по отсутствию кода. При нехватке основания запроси полный режим. Их их набор, названия, версии, порядок и внутренняя структура могут различаться. Не ожидай конкретных файлов, модулей, заголовков или формата. Сначала прочитай все материалы, сопоставь сущности по смыслу и собери единую картину продукта, процесса, данных и ограничений. Создай отдельный черновик холста; не меняй исходные файлы, методику курса, исторические значения или формулировки.
+{v:false,t:`Ты заполняешь AI Leverage Canvas по произвольному набору артефактов одного студента. Внизу даны подготовленные материалы файлов: в компактном режиме код ячеек и реализации компонентов исключён, поэтому не делай вывод об отсутствии вычислений или инструментов только по отсутствию кода. При нехватке основания запроси полный режим. Их набор, названия, версии, порядок и внутренняя структура могут различаться. Не ожидай конкретных файлов, модулей, заголовков или формата. Сначала прочитай все материалы, сопоставь сущности по смыслу и собери единую картину продукта, процесса, данных и ограничений. Создай отдельный черновик холста; не меняй исходные файлы, методику курса, исторические значения или формулировки.
 1. Используй любой релевантный сигнал из массива: текст, таблицы, код ноутбука, JSON-экспорт, метрики, интервью, бриф или текущий черновик. Если один факт встречается в нескольких версиях, предпочти более конкретный и явно датированный; если версии противоречат, не выбирай молча — отрази противоречие и нужное уточнение.
 2. Выдели 3–5 процессов из имеющихся материалов и обоснуй линзы: доходный (ценность), дорогой (затраты), несодержательный (рутина), рискованный (ошибки). Не добавляй линзы без основания. Если процессов, цифр или подтверждений мало, предложи наиболее вероятные кандидаты, но явно отметь в note, что это гипотеза и каких данных не хватает.
 3. Поля осей: complexity — сложность процесса, cost — затраты процесса, speed — задержки процесса, repeat — повторяемость. Шкала 1–5: больше — сильнее рычаг ИИ. Площадь ромба = (complexity*cost+cost*speed+speed*repeat+repeat*complexity)/2. Старые артефакты могут использовать другие оси: не подменяй их смысл, а осторожно сопоставь с текущими и пометь оценку как допущение с обоснованием в note.
@@ -603,16 +639,16 @@ ${JSON.stringify(responseShape(),null,2)}
 
 ТЕКУЩИЙ ЧЕРНОВИК:
 `},
-{v:true,t:template?'<текущий черновик: выбор процесса, приоритизация и 9 ячеек холста>':exportMd()},
+{v:true,t:template?'[ЗАПОЛНИТЕ: вставьте текущий черновик, если он есть; иначе укажите, что холст создаётся с нуля]' :exportMd()},
 {v:false,t:'\n\nФАЙЛЫ СТУДЕНТА С ПРЕДЫДУЩИХ ЭТАПОВ (копии, оригиналы не менять):\n'},
-{v:true,t:template?'<файлы студента: имена и полный извлечённый текст>':materialContext($('#fullSourceContext').checked)}
+{v:true,t:template?'[ЗАПОЛНИТЕ: вставьте имена файлов и тексты материалов проекта]' :materialContext($('#fullSourceContext').checked)}
 ]}
-function buildPrompt(){return bridgeParts().map(p=>p.t).join('')}
+function buildPrompt(mode=bridgeMode){return bridgeParts(mode==='template').map(p=>p.t).join('')}
 $('#fullSourceContext').onchange=()=>renderBridge();
-function renderBridge(){if(!$('#bridgePrompt'))return;const isTemplate=bridgeMode==='template';const kb=t=>(new TextEncoder().encode(t).length/1024).toFixed(1);$('#contextSize').textContent=`Промпт: ${kb(buildPrompt())} КБ. Полный текст материалов: ${kb(materialContext(true))} КБ. ${$('#fullSourceContext').checked?'Полный режим: включён технический код.':'Компактный режим: код ячеек и компонентов исключён. Пояснения, текстовые результаты, параметры агентов и связи сохранены. Если выводов не хватает, включите полный режим.'}`;$('#bridgePrompt').innerHTML=bridgeParts(isTemplate).map(p=>p.v?`<span class="prompt-value">${esc(p.t)}</span>`:esc(p.t)).join('');$('#promptTemplate').setAttribute('aria-pressed',isTemplate);$('#promptFilled').setAttribute('aria-pressed',!isTemplate);$('#bridgeModeHelp').textContent=isTemplate?'Это только структура: красные фразы — объясняющие маркеры, а не ответы студента. При копировании тренажёр автоматически подставит текущий черновик и подготовленные материалы.':'Отправляйте этот вариант в ассистент: в нём находятся текущий черновик и подготовленные материалы студента. Красным выделены подстановки; автоматически они никуда не передаются.'}
+function renderBridge(){if(!$('#bridgePrompt'))return;const isTemplate=bridgeMode==='template';const kb=t=>(new TextEncoder().encode(t).length/1024).toFixed(1);$('#contextSize').textContent=`Промпт: ${kb(buildPrompt())} КБ. Полный текст материалов: ${kb(materialContext(true))} КБ. ${$('#fullSourceContext').checked?'Полный режим: включён технический код.':'Компактный режим: код ячеек и компонентов исключён. Пояснения, текстовые результаты, параметры агентов и связи сохранены. Если выводов не хватает, включите полный режим.'}`;$('#bridgePrompt').innerHTML=bridgeParts(isTemplate).map(p=>p.v?`<span class="prompt-value">${esc(p.t)}</span>`:esc(p.t)).join('');$('#promptTemplate').setAttribute('aria-pressed',isTemplate);$('#promptFilled').setAttribute('aria-pressed',!isTemplate);$('#bridgeModeHelp').textContent=isTemplate?'Это только структура: замените маркеры [ЗАПОЛНИТЕ: …] своими данными. В предпросмотре они выделены цветом; при копировании маркеры сохраняются обычным текстом. Выбранный режим не меняется.':'В этом варианте подставлены текущий черновик и материалы. Цвет выделяет их только в предпросмотре; названия разделов и маркеры [ЗАПОЛНИТЕ: …] читаются без цвета. Проверьте недостающие данные перед отправкой. Автоматически материалы никуда не передаются.'}
 $('#promptTemplate').onclick=()=>{bridgeMode='template';renderBridge()};
 $('#promptFilled').onclick=()=>{bridgeMode='filled';renderBridge()};
-$('#copyBridge').onclick=()=>{const wasTemplate=bridgeMode==='template';bridgeMode='filled';renderBridge();copyText(buildPrompt());if(wasTemplate)msg('Скопирован промпт с вашими файлами')};
+$('#copyBridge').onclick=()=>copyText(buildPrompt(),bridgeMode==='template'?'Скопирована структура промпта':'Скопирован промпт с вашими файлами');
 let jsonWasRepaired=false;
 function parseReply(raw){
  jsonWasRepaired=false;
@@ -692,7 +728,19 @@ function renderQuadLens(){
  note.textContent=unplaced.length?unplaced.map(o=>`${o.index+1}. ${o.c.name}: ${o.mask?'не удалось разместить без наложения — процесс сохранён в таблице':'линзы пока не выбраны'}`).join(' · '):'Каждый квадрат — один процесс в точном пересечении отмеченных линз. Наведите, чтобы увидеть название.';
 }
 
-load();renderAll();
+function growAnswer(el){
+ if(!(el instanceof HTMLTextAreaElement)||!el.getClientRects().length)return;
+ const st=getComputedStyle(el),min=parseFloat(st.minHeight)||128,max=parseFloat(st.maxHeight)||480;
+ el.style.height='auto';el.style.height=Math.min(max,Math.max(min,el.scrollHeight+2))+'px';
+}
+function growAnswers(){document.querySelectorAll('textarea').forEach(growAnswer)}
+let growFrame;
+function queueGrow(){cancelAnimationFrame(growFrame);growFrame=requestAnimationFrame(growAnswers)}
+document.addEventListener('input',e=>growAnswer(e.target));
+document.addEventListener('toggle',queueGrow,true);window.addEventListener('resize',queueGrow);
+for(const id of ['s2','s7']){const table=document.querySelector('#'+id+' table'),wrap=document.createElement('div');wrap.className='answer-table-scroll';wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label','Таблица шага '+id.slice(1));table.before(wrap);wrap.append(table)}
+new MutationObserver(queueGrow).observe(document.querySelector('main'),{childList:true,subtree:true});
+load();renderAll();queueGrow();
 </script>
-<script src="scorm-runtime.js"></script></body>
+</body>
 </html>
