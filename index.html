@@ -520,12 +520,12 @@ function canvasSvg(){
   let chosen=null;
   for(let size=28;size>=25&&!chosen;size--){ctx.font=`${size}px Arial`;const lineHeight=Math.ceil(size*1.35);
    for(let count=3;count<65;count++){
-    const start=Math.round(centers[c.id]-(count*lineHeight)/2), words=(c.n+'. '+c.t.split(' (')[0]+'\n'+text).split(/(\n|\s+)/).filter(w=>w==='\n'||w.trim());let n=0,lines=[];
-    for(let row=0;row<count&&n<words.length;row++){const y=start+row*lineHeight,range=span(y,size);if(!range||range[1]-range[0]<160)break;let line='';while(n<words.length){const word=words[n];if(word==='\n'){n++;break}const next=line?line+' '+word:word;if(ctx.measureText(next).width>range[1]-range[0])break;line=next;n++}if(!line)break;lines.push({x:range[0],y,text:line})}
+    const start=Math.round(centers[c.id]-(count*lineHeight)/2), words=(c.n+'. '+c.t.split(' (')[0]+'\n'+text).split(/(\n|\s+)/).filter(w=>w==='\n'||w.trim());let n=0,lines=[],heading=true;
+    for(let row=0;row<count&&n<words.length;row++){const y=start+row*lineHeight,range=span(y,size);if(!range||range[1]-range[0]<160)break;let line='';const isHeading=heading;ctx.font=`${isHeading?'700':'400'} ${size}px Arial`;while(n<words.length){const word=words[n];if(word==='\n'){n++;heading=false;break}const next=line?line+' '+word:word;if(ctx.measureText(next).width>range[1]-range[0])break;line=next;n++}if(!line)break;lines.push({x:range[0],y,text:line,heading:isHeading})}
     if(n===words.length){chosen={size,lines};break}
    }
   }
-  if(chosen)svg+=`<g data-layout-cell="${c.id}" fill="#20242c" font-family="Arial,sans-serif" font-size="${chosen.size}">`+chosen.lines.map((l,i)=>`<text x="${l.x}" y="${l.y}" ${i===0?'font-weight="700" fill="#c43d23"':''}>${esc(l.text)}</text>`).join('')+'</g>';
+  if(chosen)svg+=`<g data-layout-cell="${c.id}" fill="#20242c" font-family="Arial,sans-serif" font-size="${chosen.size}">`+chosen.lines.map(l=>`<text x="${l.x}" y="${l.y}" ${l.heading?'font-weight="700" fill="#c43d23"':''}>${esc(l.text)}</text>`).join('')+'</g>';
   else {
    // Find an inset rectangle inside this exact region, including the circular cut-out.
    // Overflow remains readable and scrollable instead of shrinking or discarding text.
